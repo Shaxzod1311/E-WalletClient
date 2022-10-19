@@ -9,11 +9,12 @@ namespace ConsoleApp
 {
     class Program
     {
+        string ClientId = "099aaecc-fb0e-4b27-bea9-882d320bff1d";
+        string SecretKey = "1KpT1XxtIm+PYLn98xbFtAmrw/ihD7QrBImsA/WFdjU=";
         static void Main(string[] args)
         {
 
-            string ClientId = "099aaecc-fb0e-4b27-bea9-882d320bff1d";
-            string SecretKey = "1KpT1XxtIm+PYLn98xbFtAmrw/ihD7QrBImsA/WFdjU=";
+           
 
 
         }
@@ -21,14 +22,14 @@ namespace ConsoleApp
         static async Task BalanceOfWalletAsyncAsync(Guid walletId)
         {
             Console.WriteLine("Calling the back-end API");
-            //Need to change the port number
-            //provide the port number where your api is running
+
+
             string apiBaseAddress = "http://localhost:5001/";
             HMACDelegatingHandler customDelegatingHandler = new HMACDelegatingHandler();
 
             HttpClient client = HttpClientFactory.Create(customDelegatingHandler);
 
-            HttpResponseMessage response = await client.PostAsJsonAsync(apiBaseAddress + "api/orders", walletId);
+            HttpResponseMessage response = await client.PostAsJsonAsync(apiBaseAddress + "", walletId);
 
             if (response.IsSuccessStatusCode)
             {
