@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
@@ -15,13 +16,13 @@ namespace ConsoleApp
         {
             // Replace with your own values
             string baseUrl = "https://localhost:7024/";
-            string userId = "026d4cf1-048e-4c09-9f1c-2ad074997843";
+            string userId = "2ba5597b-5a8b-45c3-a838-c886a4873acf";
             string secretKey = "1KpT1XxtIm+PYLn98xbFtAmrw/ihD7QrBImsA/WFdjU=";
 
 
             using var httpClient = new HttpClient();
 
-            
+
             httpClient.BaseAddress = new Uri(baseUrl);
 
             string authHeader = "HMAC";
@@ -31,57 +32,104 @@ namespace ConsoleApp
             string currentMonth = DateTime.Now.ToString("yyyy-MM");
 
 
-            var rechargeData = await GetRechargeData(httpClient, secretKey, Guid.Parse("996c36c0-a38d-473e-9816-6320056881f9"));
-            //Console.WriteLine($"Total recharge operations: {rechargeData.TotalCount}, Total recharge amount: {rechargeData.TotalAmount}");
+            var response = await GetRechargeData(httpClient, secretKey, "9d887904-794d-4535-924c-fe44696bcaec");
+
+            if (response.Data != null)
+            {
+                foreach (var transaction in response.Data)
+                {
+                    Console.WriteLine($"Total recharge operations: {transaction.WalletId}, Total recharge amount: {transaction.Amount}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"Error: {response.Error.Message} | Code: {response.Error.Code}");
+            }
 
 
-            //bool accountExists = await CheckAccountExists(httpClient, secretKey);
-            //Console.WriteLine($"Account exists: {accountExists}");
+
+            var response1 = await CheckAccountExists(httpClient, secretKey, userId);
+
+            if (response1.Data != null)
+            {
+                Console.WriteLine($"Account exists: {response1.Data.Id}");
+
+            }
+            else
+            {
+                Console.WriteLine($"Error: {response1.Error.Message} | Code: {response1.Error.Code}");
+            }
 
 
-            //await ReplenishAccount(httpClient, secretKey, "example-account-id", 5000);
+            var response2 = await ReplenishAccount(httpClient, secretKey, "9d887904-794d-4535-924c-fe44696bcaec", 5000);
+
+            if (response2.Data != null)
+            {
+                Console.WriteLine($"WalletId = {response2.Data}");
+
+            }
+            else
+            {
+                Console.WriteLine($"Error: {response2.Error.Message} | Code: {response2.Error.Code}");
+            }
 
 
-            //var balance = await GetBalance(httpClient, secretKey, Guid.Parse("2bc99099-55a8-4838-bbab-bd78decf2e7f"));
-            //Console.WriteLine($"Balance: {balance}");
+            var response3 = await GetBalance(httpClient, secretKey, Guid.Parse("9d887904-794d-4535-924c-fe44696bcaec"));
+            
+            if (response3.Data != null)
+            {
+                Console.WriteLine($"Balance: {response3.Data.Balance}");
+
+            }
+            else
+            {
+                Console.WriteLine($"Error: {response3.Error.Message} | Code: {response3.Error.Code}");
+            }
         }
 
-        static async Task<bool> CheckAccountExists(HttpClient httpClient, string secretKey)
+
+        static async Task<BaseResponse<WalletDTO>> CheckAccountExists(HttpClient httpClient, string secretKey, string userId)
         {
 
             var request = new HttpRequestMessage(HttpMethod.Post, "Ewallet/CheckToAccountExists");
 
+            var requestBody = userId;
+            request.Content = new StringContent(JsonConvert.SerializeObject(requestBody), Encoding.UTF8, "application/json");
 
             request.Headers.Add("X-Digest", ComputeHmacSha1(secretKey, await request.Content.ReadAsStringAsync()));
 
 
             using var response = await httpClient.SendAsync(request);
-            var responseJson = await response.Content.ReadFromJsonAsync<bool>();
+            var responseJson = await response.Content.ReadFromJsonAsync<BaseResponse<WalletDTO>>();
 
             return responseJson;
         }
 
-        static async Task ReplenishAccount(HttpClient httpClient, string secretKey, string accountId, decimal amount)
+
+        static async Task<BaseResponse<Guid>> ReplenishAccount(HttpClient httpClient, string secretKey, string accountId, decimal amount)
         {
-            var url = new Uri("Ewallet/TopUp");
-            var request = new HttpRequestMessage(HttpMethod.Post, url);
+
+            var request = new HttpRequestMessage(HttpMethod.Post, "Ewallet/TopUp");
 
 
             var requestBody = new { WalletId = accountId, Amount = amount };
-            new StringContent(JsonConvert.SerializeObject(requestBody), Encoding.UTF8, "application/json");
+            request.Content = new StringContent(JsonConvert.SerializeObject(requestBody), Encoding.UTF8, "application/json");
 
 
             request.Headers.Add("X-Digest", ComputeHmacSha1(secretKey, await request.Content.ReadAsStringAsync()));
 
 
-            using var response = await httpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
+            using var response = httpClient.Send(request);
+
+            var responseMessage = await response.Content.ReadFromJsonAsync<BaseResponse<Guid>>();
+            return responseMessage;
         }
 
-        static async Task<HttpResponseMessage> GetRechargeData(HttpClient httpClient, string secretKey, Guid id)
+
+        static async Task<BaseResponse<List<TransactionDTO>>> GetRechargeData(HttpClient httpClient, string secretKey, string id)
         {
 
-            var request = new HttpRequestMessage(HttpMethod.Post, Uri.UnescapeDataString("ewallet​/getRechargeInfo"));
+            var request = new HttpRequestMessage(HttpMethod.Post, "Ewallet/GetRechargeInfo");
 
 
             var requestBody = id ;
@@ -92,11 +140,13 @@ namespace ConsoleApp
 
 
             using var response = httpClient.Send(request);
+            var responeMessage = await response.Content.ReadFromJsonAsync<BaseResponse<List<TransactionDTO>>>();
 
-            return response;
+            return responeMessage;
         }
 
-        static async Task<decimal> GetBalance(HttpClient httpClient, string secretKey, Guid accountNumber)
+
+        static async Task<BaseResponse<WalletDTO>> GetBalance(HttpClient httpClient, string secretKey, Guid accountNumber)
         {
 
             var request = new HttpRequestMessage(HttpMethod.Post, "Ewallet/GetBalance");
@@ -110,10 +160,11 @@ namespace ConsoleApp
 
 
             using var response = httpClient.Send(request);
-            var responseJson = await response.Content.ReadFromJsonAsync<decimal>();
+            var responseJson = await response.Content.ReadFromJsonAsync<BaseResponse<WalletDTO>>();
 
             return responseJson;
         }
+
 
         static string ComputeHmacSha1(string key, string data)
         {
@@ -122,4 +173,38 @@ namespace ConsoleApp
             return Convert.ToBase64String(hash);
         }
     }
+
+    #region DTOs
+    public class WalletDTO
+    {
+        public Guid Id { get; set; }
+        public Guid UserId { get; set; }
+        public decimal Balance { get; set; }
+    }
+
+
+    public class TransactionDTO
+    {
+        public Guid UserId { get; set; }
+        public Guid WalletId { get; set; }
+        public decimal Amount { get; set; }
+        public DateTime Date { get; set; }
+    }
+
+    public class BaseResponse<TSource>
+    {
+        public int? Code { get; set; } = 200;
+        public TSource? Data { get; set; }
+        public ErrorResponse? Error { get; set; }
+
+    }
+
+    public class ErrorResponse
+    {
+
+        public int? Code { get; set; }
+        public string? Message { get; set; }
+
+    }
+    #endregion
 }
